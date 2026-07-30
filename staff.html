@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SafeDrug — 店員用管理画面</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --purple:#534AB7; --purple-l:#EEEDFE; --purple-d:#3C3489;
+  --green:#3B6D11;  --green-l:#EAF3DE;  --green-d:#27500A;
+  --amber:#854F0B;  --amber-l:#FAEEDA;  --amber-d:#633806;
+  --red:#A32D2D;    --red-l:#FCEBEB;    --red-d:#791F1F;
+  --blue:#1D4ED8;   --blue-l:#DBEAFE;   --blue-d:#1e3a8a;
+  --text:#1a1a18; --text2:#5F5E5A; --text3:#888780;
+  --border:rgba(0,0,0,.12); --bg:#ffffff; --bg2:#F5F4F0;
+}
+body { font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif; background:#e8e6de; min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:20px 12px; }
+.phone { width:100%; max-width:390px; background:#1a1a18; border-radius:44px; padding:12px; box-shadow:0 32px 64px rgba(0,0,0,.28); }
+.screen { background:var(--bg); border-radius:30px; min-height:700px; display:flex; flex-direction:column; overflow:hidden; }
+.hdr { padding:16px 20px 12px; border-bottom:.5px solid var(--border); display:flex; align-items:center; gap:10px; background:var(--bg); }
+.logo { width:34px; height:34px; border-radius:9px; background:var(--blue); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:var(--blue-l); flex-shrink:0; }
+.hdr-title { font-size:15px; font-weight:600; color:var(--text); }
+.hdr-sub   { font-size:11px; color:var(--text2); margin-top:1px; }
+.staff-badge { margin-left:auto; font-size:10px; font-weight:700; background:var(--blue-l); color:var(--blue-d); padding:3px 8px; border-radius:6px; white-space:nowrap; }
+.body { padding:18px 20px; flex:1; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+.page { display:none; flex-direction:column; gap:12px; flex:1; }
+.page.active { display:flex; }
+.btn { width:100%; padding:12px; border-radius:11px; font-size:13px; font-weight:600; cursor:pointer; border:none; text-align:center; transition:opacity .15s,transform .1s; }
+.btn:active { opacity:.8; transform:scale(.98); }
+.btn-blue   { background:var(--blue); color:var(--blue-l); }
+.btn-purple { background:var(--purple); color:var(--purple-l); }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-green  { background:var(--green); color:var(--green-l); }
+.btn-red    { background:var(--red-l); color:var(--red-d); border:1px solid #F09595; }
+.btn-sm { width:auto; padding:8px 14px; font-size:12px; }
+.fl { display:flex; flex-direction:column; gap:4px; }
+.fl label { font-size:12px; color:var(--text2); font-weight:500; }
+.fl input, .fl select, .fl textarea { width:100%; padding:10px 12px; font-size:13px; border-radius:9px; border:1px solid var(--border); background:var(--bg2); color:var(--text); outline:none; font-family:inherit; }
+.fl input:focus, .fl select:focus, .fl textarea:focus { border-color:var(--blue); }
+.fl textarea { resize:none; min-height:64px; line-height:1.5; }
+.note { font-size:12px; line-height:1.6; color:var(--text2); background:var(--bg2); border-radius:9px; padding:10px 12px; }
+.section-title { font-size:15px; font-weight:700; color:var(--text); }
+.section-sub { font-size:12px; color:var(--text2); }
+/* PIN */
+.pin-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; text-align:center; }
+.pin-icon { width:72px; height:72px; border-radius:20px; background:var(--blue-l); display:flex; align-items:center; justify-content:center; }
+.pin-dots { display:flex; gap:14px; justify-content:center; }
+.pin-dot { width:16px; height:16px; border-radius:50%; border:2px solid var(--blue); background:var(--bg); transition:background .15s; }
+.pin-dot.filled { background:var(--blue); }
+.pin-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:220px; }
+.pin-key { padding:14px; border-radius:13px; font-size:18px; font-weight:600; cursor:pointer; border:none; background:var(--bg2); color:var(--text); transition:background .1s,transform .1s; }
+.pin-key:active { background:#dddbd4; transform:scale(.95); }
+.pin-key.del { font-size:14px; color:var(--text2); }
+.pin-err { font-size:12px; color:var(--red); font-weight:600; min-height:18px; }
+/* Record list */
+.rec-item { border-radius:11px; padding:12px 14px; border:1px solid var(--border); background:var(--bg2); }
+.rec-item.alert { border-color:#F09595; background:var(--red-l); }
+.rec-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.rec-drug { font-size:13px; font-weight:600; color:var(--text); }
+.rec-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; white-space:nowrap; flex-shrink:0; }
+.rec-meta { font-size:11px; color:var(--text2); line-height:1.6; }
+.rec-meta.warn { color:var(--red); }
+/* Stats */
+.stat-row { display:flex; gap:8px; }
+.stat-card { flex:1; border-radius:11px; padding:10px 12px; border:1px solid var(--border); text-align:center; }
+.stat-num { font-size:22px; font-weight:700; }
+.stat-lbl { font-size:10px; color:var(--text2); margin-top:2px; line-height:1.4; }
+/* Nav tabs */
+.tab-bar { display:flex; border-bottom:1px solid var(--border); margin:-18px -20px 0; padding:0 20px; }
+.tab { flex:1; padding:12px 8px; font-size:12px; font-weight:600; text-align:center; color:var(--text2); cursor:pointer; border-bottom:2px solid transparent; transition:color .15s,border-color .15s; }
+.tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+/* Divider */
+.divider { height:.5px; background:var(--border); margin:2px 0; }
+/* Logout btn small */
+.logout-btn { font-size:11px; color:var(--text3); cursor:pointer; margin-left:auto; background:none; border:none; padding:4px 8px; }
+.logout-btn:hover { color:var(--red); }
+</style>
+</head>
+<body>
+<div class="phone"><div class="screen">
+  <div class="hdr">
+    <div class="logo">S</div>
+    <div><div class="hdr-title">SafeDrug</div><div class="hdr-sub" id="hdr-sub">店員用管理画面</div></div>
+    <span class="staff-badge">STAFF</span>
+  </div>
+  <div class="body">
+
+    <!-- PIN ログイン -->
+    <div class="page active" id="pg-login">
+      <div class="pin-wrap">
+        <div class="pin-icon">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+            <rect x="8" y="16" width="20" height="14" rx="4" fill="#DBEAFE" stroke="#1D4ED8" stroke-width="1.5"/>
+            <path d="M12 16v-5a6 6 0 0 1 12 0v5" stroke="#1D4ED8" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="18" cy="23" r="2" fill="#1D4ED8"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">店員ログイン</div>
+          <div style="font-size:12px;color:var(--text2);">4桁のPINコードを入力してください</div>
+        </div>
+        <div class="pin-dots">
+          <div class="pin-dot" id="d0"></div>
+          <div class="pin-dot" id="d1"></div>
+          <div class="pin-dot" id="d2"></div>
+          <div class="pin-dot" id="d3"></div>
+        </div>
+        <div class="pin-keypad">
+          <button class="pin-key" onclick="pinInput('1')">1</button>
+          <button class="pin-key" onclick="pinInput('2')">2</button>
+          <button class="pin-key" onclick="pinInput('3')">3</button>
+          <button class="pin-key" onclick="pinInput('4')">4</button>
+          <button class="pin-key" onclick="pinInput('5')">5</button>
+          <button class="pin-key" onclick="pinInput('6')">6</button>
+          <button class="pin-key" onclick="pinInput('7')">7</button>
+          <button class="pin-key" onclick="pinInput('8')">8</button>
+          <button class="pin-key" onclick="pinInput('9')">9</button>
+          <button class="pin-key" style="visibility:hidden"></button>
+          <button class="pin-key" onclick="pinInput('0')">0</button>
+          <button class="pin-key del" onclick="pinDelete()">&#9003;</button>
+        </div>
+        <div class="pin-err" id="pin-err"></div>
+        <div style="font-size:11px;color:var(--text3);">デモ用PIN：1234</div>
+      </div>
+    </div>
+
+    <!-- メイン（タブ切り替え） -->
+    <div class="page" id="pg-main">
+      <div class="tab-bar">
+        <div class="tab active" id="tab-form" onclick="switchTab('form')">手動記録</div>
+        <div class="tab" id="tab-list" onclick="switchTab('list')">記録一覧</div>
+        <button class="logout-btn" onclick="logout()">ログアウト</button>
+      </div>
+
+      <!-- 手動購入記録フォーム -->
+      <div id="panel-form" style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
+        <div class="section-title">手動購入記録</div>
+        <div class="note">アプリ未使用の購入者に対して店員が記録します。</div>
+
+        <div class="fl">
+          <label>購入日時</label>
+          <input type="text" id="f-datetime" readonly style="background:#edecea;color:var(--text2);">
+        </div>
+
+        <div class="fl">
+          <label>店舗名</label>
+          <select id="f-store">
+            <option value="">--- 選択してください ---</option>
+            <option>マツモトキヨシ梅田店</option>
+            <option>ウエルシア難波店</option>
+            <option>ツルハドラッグ心斎橋</option>
+            <option>コスモス天王寺</option>
+            <option>スギ薬局京橋</option>
+          </select>
+        </div>
+
+        <div class="fl">
+          <label>購入商品</label>
+          <select id="f-drug">
+            <option value="">--- 選択してください ---</option>
+            <option>コデイン含有薬</option>
+            <option>デキストロメトルファン含有薬</option>
+            <option>ジフェンヒドラミン含有薬</option>
+          </select>
+        </div>
+
+        <div class="fl">
+          <label>購入者の電話番号（任意）</label>
+          <input type="tel" id="f-phone" placeholder="090-0000-0000">
+        </div>
+
+        <div class="fl">
+          <label>アプリ確認の状況</label>
+          <select id="f-app">
+            <option value="">--- 選択してください ---</option>
+            <option value="ok">確認済み（アプリで確認）</option>
+            <option value="refused">拒否（使用拒否）</option>
+            <option value="no-phone">スマホなし申告</option>
+            <option value="minor">未成年</option>
+          </select>
+        </div>
+
+        <div class="fl">
+          <label>身分証確認の状況</label>
+          <select id="f-id">
+            <option value="">--- 選択してください ---</option>
+            <option value="ok">確認済み</option>
+            <option value="not-checked">未確認</option>
+            <option value="refused">提示拒否</option>
+          </select>
+        </div>
+
+        <div class="fl">
+          <label>特記事項</label>
+          <textarea id="f-note" placeholder="気になる言動、外見、状況など自由記述"></textarea>
+        </div>
+
+        <button class="btn btn-blue" onclick="submitRecord()">記録する</button>
+        <div id="form-msg" style="font-size:12px;text-align:center;color:var(--green);font-weight:600;min-height:18px;"></div>
+      </div>
+
+      <!-- 記録一覧 -->
+      <div id="panel-list" style="display:none;flex-direction:column;gap:12px;padding-top:4px;">
+        <div class="section-title">購入記録一覧</div>
+
+        <!-- 集計 -->
+        <div class="stat-row" id="stat-row">
+          <div class="stat-card">
+            <div class="stat-num" id="stat-total" style="color:var(--blue);">0</div>
+            <div class="stat-lbl">総記録数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="stat-refused" style="color:var(--amber);">0</div>
+            <div class="stat-lbl">アプリ拒否・<br>スマホなし申告</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="stat-id-refused" style="color:var(--red);">0</div>
+            <div class="stat-lbl">身分証<br>拒否</div>
+          </div>
+        </div>
+
+        <button class="btn btn-outline" onclick="exportCSV()" style="font-size:12px;padding:9px;">CSVエクスポート</button>
+
+        <div class="divider"></div>
+
+        <div id="rec-list" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">記録がありません</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div></div>
+
+<script>
+const DEMO_PIN = '1234';
+let pinBuf = '';
+let records = [];
+
+/* ─── PIN ─── */
+function pinInput(ch) {
+  if (pinBuf.length >= 4) return;
+  pinBuf += ch;
+  updateDots();
+  if (pinBuf.length === 4) setTimeout(checkPin, 150);
+}
+function pinDelete() {
+  pinBuf = pinBuf.slice(0, -1);
+  updateDots();
+  document.getElementById('pin-err').textContent = '';
+}
+function updateDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('d' + i).classList.toggle('filled', i < pinBuf.length);
+  }
+}
+function checkPin() {
+  if (pinBuf === DEMO_PIN) {
+    showPage('pg-main');
+    document.getElementById('hdr-sub').textContent = '購入記録管理';
+    updateDatetime();
+    renderList();
+  } else {
+    document.getElementById('pin-err').textContent = 'PINコードが違います';
+    pinBuf = '';
+    updateDots();
+  }
+}
+function logout() {
+  pinBuf = '';
+  updateDots();
+  document.getElementById('pin-err').textContent = '';
+  showPage('pg-login');
+  document.getElementById('hdr-sub').textContent = '店員用管理画面';
+  switchTab('form');
+}
+
+/* ─── ページ切り替え ─── */
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function switchTab(tab) {
+  document.getElementById('tab-form').classList.toggle('active', tab === 'form');
+  document.getElementById('tab-list').classList.toggle('active', tab === 'list');
+  document.getElementById('panel-form').style.display = tab === 'form' ? 'flex' : 'none';
+  document.getElementById('panel-list').style.display = tab === 'list' ? 'flex' : 'none';
+  if (tab === 'list') renderList();
+}
+
+/* ─── 日時 ─── */
+function updateDatetime() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('f-datetime').value =
+    `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+/* ─── 記録 ─── */
+function submitRecord() {
+  const store = document.getElementById('f-store').value;
+  const drug  = document.getElementById('f-drug').value;
+  const app   = document.getElementById('f-app').value;
+  const idChk = document.getElementById('f-id').value;
+
+  if (!store || !drug || !app || !idChk) {
+    document.getElementById('form-msg').style.color = 'var(--red)';
+    document.getElementById('form-msg').textContent = '店舗・商品・アプリ確認・身分証確認は必須です';
+    return;
+  }
+
+  updateDatetime();
+  const rec = {
+    datetime: document.getElementById('f-datetime').value,
+    store,
+    drug,
+    phone:    document.getElementById('f-phone').value || '—',
+    app,
+    idChk,
+    note:     document.getElementById('f-note').value || ''
+  };
+  records.unshift(rec);
+
+  // フォームリセット
+  document.getElementById('f-store').value = '';
+  document.getElementById('f-drug').value  = '';
+  document.getElementById('f-phone').value = '';
+  document.getElementById('f-app').value   = '';
+  document.getElementById('f-id').value    = '';
+  document.getElementById('f-note').value  = '';
+  updateDatetime();
+
+  document.getElementById('form-msg').style.color = 'var(--green)';
+  document.getElementById('form-msg').textContent = '記録しました';
+  setTimeout(() => { document.getElementById('form-msg').textContent = ''; }, 2500);
+}
+
+/* ─── 一覧 ─── */
+const APP_LABELS = {
+  ok:       ['#EAF3DE','#27500A','確認済み'],
+  refused:  ['#FAEEDA','#633806','アプリ拒否'],
+  'no-phone':['#FAEEDA','#633806','スマホなし'],
+  minor:    ['#DBEAFE','#1e3a8a','未成年']
+};
+const ID_LABELS = {
+  ok:           ['#EAF3DE','#27500A','身分証OK'],
+  'not-checked':['#F5F4F0','#5F5E5A','身分証未確認'],
+  refused:      ['#FCEBEB','#791F1F','身分証拒否']
+};
+
+function isAlert(rec) {
+  return rec.app === 'refused' || rec.idChk === 'refused';
+}
+
+function renderList() {
+  const total      = records.length;
+  const refused    = records.filter(r => r.app === 'refused' || r.app === 'no-phone').length;
+  const idRefused  = records.filter(r => r.idChk === 'refused').length;
+
+  document.getElementById('stat-total').textContent     = total;
+  document.getElementById('stat-refused').textContent   = refused;
+  document.getElementById('stat-id-refused').textContent = idRefused;
+
+  const el = document.getElementById('rec-list');
+  if (records.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">記録がありません</div>';
+    return;
+  }
+
+  el.innerHTML = records.map((r, i) => {
+    const [abg, atc, albl] = APP_LABELS[r.app] || ['#F5F4F0','#5F5E5A','—'];
+    const [ibg, itc, ilbl] = ID_LABELS[r.idChk] || ['#F5F4F0','#5F5E5A','—'];
+    const alert = isAlert(r);
+    const noteHtml = r.note ? `<div class="rec-meta" style="margin-top:4px;padding-top:4px;border-top:.5px solid rgba(0,0,0,.1);">特記：${escHtml(r.note)}</div>` : '';
+    return `<div class="rec-item${alert ? ' alert' : ''}">
+      <div class="rec-top">
+        <div class="rec-drug">${escHtml(r.drug)}</div>
+        <span class="rec-badge" style="background:${abg};color:${atc};">${albl}</span>
+      </div>
+      <div class="rec-meta">${escHtml(r.datetime)} — ${escHtml(r.store)}</div>
+      <div class="rec-meta">電話：${escHtml(r.phone)}</div>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+        <span class="rec-badge" style="background:${abg};color:${atc};">${albl}</span>
+        <span class="rec-badge" style="background:${ibg};color:${itc};">${ilbl}</span>
+      </div>
+      ${noteHtml}
+    </div>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─── CSV エクスポート ─── */
+function exportCSV() {
+  if (records.length === 0) { alert('記録がありません'); return; }
+  const APP_TEXT = { ok:'確認済み', refused:'アプリ拒否', 'no-phone':'スマホなし申告', minor:'未成年' };
+  const ID_TEXT  = { ok:'確認済み', 'not-checked':'未確認', refused:'提示拒否' };
+  const rows = [['日時','店舗','商品カテゴリ','電話番号','アプリ確認','身分証確認','特記事項','警戒']];
+  records.forEach(r => {
+    rows.push([
+      r.datetime, r.store, r.drug, r.phone,
+      APP_TEXT[r.app] || r.app,
+      ID_TEXT[r.idChk] || r.idChk,
+      r.note,
+      isAlert(r) ? '要警戒' : '通常'
+    ]);
+  });
+  const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'safedrug_staff_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
