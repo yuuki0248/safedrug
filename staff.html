@@ -75,6 +75,15 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-
 /* Logout btn small */
 .logout-btn { font-size:11px; color:var(--text3); cursor:pointer; margin-left:auto; background:none; border:none; padding:4px 8px; }
 .logout-btn:hover { color:var(--red); }
+/* ID Camera */
+.id-cam-wrap { position:relative; border-radius:12px; overflow:hidden; background:#0d0d0d; height:170px; }
+#id-video { width:100%; height:100%; object-fit:cover; display:block; }
+.id-frame-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.id-frame-rect { width:82%; height:68%; border:2px solid rgba(255,255,255,.75); border-radius:6px; box-shadow:0 0 0 9999px rgba(0,0,0,.38); }
+.id-thumb-row { display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--green-l); border-radius:9px; border:1px solid #7cb35a; }
+.id-thumb { width:88px; height:56px; object-fit:cover; border-radius:6px; border:1px solid #7cb35a; flex-shrink:0; }
+.id-captured-label { font-size:12px; font-weight:600; color:var(--green-d); line-height:1.5; }
+.id-retake { font-size:11px; color:var(--text2); cursor:pointer; background:none; border:1px solid var(--border); border-radius:6px; padding:4px 8px; margin-left:auto; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -181,14 +190,46 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-
           </select>
         </div>
 
+        <!-- 身分証カメラ撮影 -->
         <div class="fl">
-          <label>身分証確認の状況</label>
-          <select id="f-id">
-            <option value="">--- 選択してください ---</option>
-            <option value="ok">確認済み</option>
-            <option value="not-checked">未確認</option>
-            <option value="refused">提示拒否</option>
-          </select>
+          <label>身分証確認</label>
+          <!-- カメラ起動ボタン -->
+          <button class="btn btn-outline" id="btn-id-cam" onclick="startIdCam()" style="text-align:left;padding:10px 12px;font-size:13px;font-weight:500;">
+            📷 身分証をカメラで確認
+          </button>
+          <!-- カメラビュー -->
+          <div id="id-cam-view" style="display:none;flex-direction:column;gap:8px;">
+            <div class="id-cam-wrap">
+              <video id="id-video" playsinline autoplay muted></video>
+              <div class="id-frame-overlay"><div class="id-frame-rect"></div></div>
+            </div>
+            <div style="font-size:11px;color:#9ca3af;text-align:center;">身分証を枠内に合わせてください</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-blue" onclick="captureId()" style="flex:1;padding:10px;">撮影する</button>
+              <button class="btn btn-outline" onclick="cancelIdCam()" style="flex:0 0 auto;padding:10px 14px;font-size:12px;">キャンセル</button>
+            </div>
+          </div>
+          <!-- サムネイルプレビュー -->
+          <div id="id-preview" style="display:none;">
+            <div class="id-thumb-row">
+              <canvas id="id-canvas" class="id-thumb"></canvas>
+              <div class="id-captured-label">身分証撮影済み<br><span style="font-weight:400;color:var(--green);">確認済みとして記録されます</span></div>
+              <button class="id-retake" onclick="retakeId()">撮り直す</button>
+            </div>
+          </div>
+          <!-- フォールバック：手動選択 -->
+          <div id="id-manual" style="display:none;flex-direction:column;gap:4px;">
+            <div style="font-size:11px;color:var(--amber);margin-bottom:2px;">カメラを使用できません。手動で選択してください。</div>
+            <select id="f-id" style="width:100%;padding:10px 12px;font-size:13px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);outline:none;">
+              <option value="">--- 選択してください ---</option>
+              <option value="ok">確認済み</option>
+              <option value="not-checked">未確認</option>
+              <option value="refused">提示拒否</option>
+            </select>
+          </div>
+          <div class="note" style="font-size:11px;padding:8px 12px;">
+            撮影した画像はこの端末内にのみ保存されます。外部に送信されることはありません。
+          </div>
         </div>
 
         <div class="fl">
@@ -237,6 +278,8 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-
 const DEMO_PIN = '1234';
 let pinBuf = '';
 let records = [];
+let idPhotoData = null;   // base64 data URL of captured ID photo
+let idMediaStream = null; // active camera stream
 
 /* ─── PIN ─── */
 function pinInput(ch) {
@@ -289,6 +332,80 @@ function switchTab(tab) {
   if (tab === 'list') renderList();
 }
 
+/* ─── 身分証カメラ ─── */
+async function startIdCam() {
+  document.getElementById('btn-id-cam').style.display = 'none';
+  document.getElementById('id-manual').style.display = 'none';
+  document.getElementById('id-preview').style.display = 'none';
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showIdManual(); return;
+  }
+  try {
+    // 背面カメラ優先、なければ任意
+    idMediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+    const video = document.getElementById('id-video');
+    video.srcObject = idMediaStream;
+    document.getElementById('id-cam-view').style.display = 'flex';
+  } catch (e) {
+    showIdManual();
+  }
+}
+
+function showIdManual() {
+  document.getElementById('btn-id-cam').style.display = 'block';
+  document.getElementById('id-manual').style.display = 'flex';
+}
+
+function captureId() {
+  const video = document.getElementById('id-video');
+  const canvas = document.getElementById('id-canvas');
+  // サムネイルサイズで描画
+  canvas.width  = 176;
+  canvas.height = 112;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  idPhotoData = canvas.toDataURL('image/jpeg', 0.7);
+
+  stopIdCam();
+  document.getElementById('id-cam-view').style.display = 'none';
+  document.getElementById('id-preview').style.display  = 'block';
+}
+
+function cancelIdCam() {
+  stopIdCam();
+  document.getElementById('id-cam-view').style.display = 'none';
+  document.getElementById('btn-id-cam').style.display  = 'block';
+}
+
+function retakeId() {
+  idPhotoData = null;
+  document.getElementById('id-preview').style.display = 'none';
+  startIdCam();
+}
+
+function stopIdCam() {
+  if (idMediaStream) {
+    idMediaStream.getTracks().forEach(t => t.stop());
+    idMediaStream = null;
+  }
+  const video = document.getElementById('id-video');
+  if (video) video.srcObject = null;
+}
+
+function resetIdSection() {
+  stopIdCam();
+  idPhotoData = null;
+  document.getElementById('btn-id-cam').style.display  = 'block';
+  document.getElementById('id-cam-view').style.display = 'none';
+  document.getElementById('id-preview').style.display  = 'none';
+  document.getElementById('id-manual').style.display   = 'none';
+  const sel = document.getElementById('f-id');
+  if (sel) sel.value = '';
+}
+
 /* ─── 日時 ─── */
 function updateDatetime() {
   const now = new Date();
@@ -302,7 +419,10 @@ function submitRecord() {
   const store = document.getElementById('f-store').value;
   const drug  = document.getElementById('f-drug').value;
   const app   = document.getElementById('f-app').value;
-  const idChk = document.getElementById('f-id').value;
+
+  // 身分証：撮影済みなら 'photo'、手動選択があればその値
+  const manualIdSel = document.getElementById('f-id');
+  const idChk = idPhotoData ? 'photo' : (manualIdSel ? manualIdSel.value : '');
 
   if (!store || !drug || !app || !idChk) {
     document.getElementById('form-msg').style.color = 'var(--red)';
@@ -315,10 +435,11 @@ function submitRecord() {
     datetime: document.getElementById('f-datetime').value,
     store,
     drug,
-    phone:    document.getElementById('f-phone').value || '—',
+    phone:   document.getElementById('f-phone').value || '—',
     app,
     idChk,
-    note:     document.getElementById('f-note').value || ''
+    idPhoto: idPhotoData,   // null or data URL (端末内のみ)
+    note:    document.getElementById('f-note').value || ''
   };
   records.unshift(rec);
 
@@ -327,8 +448,8 @@ function submitRecord() {
   document.getElementById('f-drug').value  = '';
   document.getElementById('f-phone').value = '';
   document.getElementById('f-app').value   = '';
-  document.getElementById('f-id').value    = '';
   document.getElementById('f-note').value  = '';
+  resetIdSection();
   updateDatetime();
 
   document.getElementById('form-msg').style.color = 'var(--green)';
@@ -344,6 +465,7 @@ const APP_LABELS = {
   minor:    ['#DBEAFE','#1e3a8a','未成年']
 };
 const ID_LABELS = {
+  photo:        ['#EAF3DE','#27500A','身分証撮影済み'],
   ok:           ['#EAF3DE','#27500A','身分証OK'],
   'not-checked':['#F5F4F0','#5F5E5A','身分証未確認'],
   refused:      ['#FCEBEB','#791F1F','身分証拒否']
@@ -373,6 +495,9 @@ function renderList() {
     const [ibg, itc, ilbl] = ID_LABELS[r.idChk] || ['#F5F4F0','#5F5E5A','—'];
     const alert = isAlert(r);
     const noteHtml = r.note ? `<div class="rec-meta" style="margin-top:4px;padding-top:4px;border-top:.5px solid rgba(0,0,0,.1);">特記：${escHtml(r.note)}</div>` : '';
+    const photoHtml = r.idPhoto
+      ? `<img src="${r.idPhoto}" style="width:72px;height:46px;object-fit:cover;border-radius:5px;border:1px solid #7cb35a;margin-top:6px;" alt="身分証">`
+      : '';
     return `<div class="rec-item${alert ? ' alert' : ''}">
       <div class="rec-top">
         <div class="rec-drug">${escHtml(r.drug)}</div>
@@ -380,9 +505,10 @@ function renderList() {
       </div>
       <div class="rec-meta">${escHtml(r.datetime)} — ${escHtml(r.store)}</div>
       <div class="rec-meta">電話：${escHtml(r.phone)}</div>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
         <span class="rec-badge" style="background:${abg};color:${atc};">${albl}</span>
         <span class="rec-badge" style="background:${ibg};color:${itc};">${ilbl}</span>
+        ${photoHtml}
       </div>
       ${noteHtml}
     </div>`;
@@ -397,7 +523,7 @@ function escHtml(s) {
 function exportCSV() {
   if (records.length === 0) { alert('記録がありません'); return; }
   const APP_TEXT = { ok:'確認済み', refused:'アプリ拒否', 'no-phone':'スマホなし申告', minor:'未成年' };
-  const ID_TEXT  = { ok:'確認済み', 'not-checked':'未確認', refused:'提示拒否' };
+  const ID_TEXT  = { photo:'撮影済み', ok:'確認済み', 'not-checked':'未確認', refused:'提示拒否' };
   const rows = [['日時','店舗','商品カテゴリ','電話番号','アプリ確認','身分証確認','特記事項','警戒']];
   records.forEach(r => {
     rows.push([
